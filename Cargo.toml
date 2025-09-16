@@ -1,0 +1,15 @@
+[package]
+name = "tma_engine"
+version = "0.1.8"
+edition = "2024"
+authors = ["Neil Crago"]
+description = "A lightweight crate for defining, composing, and applying 2D affine transformations."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Neil-Crago/tma_engine"
+readme = "README.md"
+documentation = "https://docs.rs/tma_engine"
+keywords = ["barnsley", "fractal", "Affine", "Sierpinski", "Julia"]
+
+[dependencies]
+image = "0.25.6"
+rand = "0.8"
