@@ -1,14 +1,13 @@
+[![Crates.io](https://img.shields.io/crates/v/tma_engine.svg?style=flat-square)](https://crates.io/crates/tma_engine)
+[![Docs.rs](https://img.shields.io/docsrs/tma_engine?style=flat-square)](https://docs.rs/tma_engine)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue?style=flat-square)](https://opensource.org/licenses/MIT)
+[![Rust](https://github.com/Neil-Crago/tma_engine/actions/workflows/rust.yml/badge.svg)](https://github.com/Neil-Crago/tma_engine/actions/workflows/rust.yml)
+
 # TMA Engine: Affine Transformation Toolkit
 
 A lightweight and ergonomic Rust crate for defining, composing, and applying 2D affine transformations.
 
 **TMA** stands for **T**ransformation, **M**atrix, **A**ffine. This engine provides the core algebraic structures for working with Iterated Function Systems (IFS), which are the mathematical foundation for generating a wide variety of fractals, including the Sierpinski Gasket and Barnsley's Fern.
-
-
-[![Crates.io](https://img.shields.io/crates/v/tma_engine.svg?style=flat-square)](https://crates.io/crates/tma_engine)
-[![Docs.rs](https://img.shields.io/docsrs/tma_engine?style=flat-square)](https://docs.rs/tma_engine)
-[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue?style=flat-square)](https://opensource.org/licenses/MIT)
-[![Rust](https://github.com/Neil-Crago/fractal_algebra/actions/workflows/rust2.yml/badge.svg)](https://github.com/Neil-Crago/fractal_algebra/actions/workflows/rust2.yml)
 
 ## Features
 
