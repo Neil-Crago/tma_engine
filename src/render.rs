@@ -1,3 +1,7 @@
+/// Module for rendering fractal points to PNG images.
+/// This module defines the Renderer struct, which takes a set of points
+/// along with their associated transformation indices and produces a PNG
+/// image visualizing the fractal structure.
 use crate::geometry::Point;
 use image::{ImageBuffer, Rgb};
 

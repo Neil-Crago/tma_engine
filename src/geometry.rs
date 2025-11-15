@@ -1,3 +1,7 @@
+/// Module for 2D affine transformations and Iterated Function Systems (IFS).
+/// This module defines the TMA struct for affine transformations
+/// and the IFS struct for managing collections of these transformations
+/// to generate fractal patterns using methods like the Chaos Game.
 use std::ops::Mul;
 
 use rand::Rng;

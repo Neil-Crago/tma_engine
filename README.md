@@ -50,12 +50,11 @@ fn main() {
 ```
 
 ## Purpose
+
 This crate is a foundational component of the FractalAlgebra workspace. It provides the geometric building blocks for generating and exploring fractals and other systems based on affine transformations
 
-## Author
-Neil Crago — experimental mathematician
-
 ## Related Crates
+
 This crate is part of a collection of crates by the same author:
 These include:-
   * MOMA
@@ -63,3 +62,5 @@ These include:-
   * fractal_algebra
   * factorial_engine
   * fa_slow_ai
+  * curvature
+  * coheron

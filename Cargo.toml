@@ -1,6 +1,6 @@
 [package]
 name = "tma_engine"
-version = "0.1.9"
+version = "0.2.0"
 edition = "2024"
 authors = ["Neil Crago"]
 description = "A lightweight crate for defining, composing, and applying 2D affine transformations."
