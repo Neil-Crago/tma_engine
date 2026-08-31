@@ -61,7 +61,8 @@ impl Renderer {
 
         for (p, index) in points_with_info {
             let px = ((p[0] - min_x) / bounds_width * (self.width.saturating_sub(1) as f64)) as u32;
-            let py = ((1.0 - (p[1] - min_y) / bounds_height) * (self.height.saturating_sub(1) as f64)) as u32;
+            let py = ((1.0 - (p[1] - min_y) / bounds_height)
+                * (self.height.saturating_sub(1) as f64)) as u32;
 
             if px < self.width && py < self.height {
                 let color = colors.get(*index).copied().unwrap_or(Rgb([255, 255, 255]));
