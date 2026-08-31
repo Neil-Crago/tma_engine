@@ -4,4 +4,4 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-tma_engine = "0.1.9"
+tma_engine = { path = "../..", version = "0.2.1" }

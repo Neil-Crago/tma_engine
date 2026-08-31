@@ -1,32 +1,73 @@
 /// Module for 2D affine transformations and Iterated Function Systems (IFS).
-/// This module defines the TMA struct for affine transformations
-/// and the IFS struct for managing collections of these transformations
-/// to generate fractal patterns using methods like the Chaos Game.
+/// This module defines the `TMA` type for affine transformations and the `IFS`
+/// type for managing collections of transformations that generate fractal
+/// structures through stochastic iteration.
+use std::fmt;
 use std::ops::Mul;
 
 use rand::Rng;
 
-// A point in our 2D fractal space.
+/// A point in 2D affine space.
 pub type Point = [f64; 2];
 
+/// The error produced when constructing an `IFS` from transformations that do
+/// not define a valid stochastic system.
+#[derive(Debug, Clone, PartialEq)]
+pub enum IFSBuildError {
+    /// The collection of transformations is empty.
+    Empty,
+    /// At least one transformation does not declare a probability.
+    MissingProbability,
+    /// The total probability is zero or not finite.
+    InvalidProbabilities,
+}
+
+impl fmt::Display for IFSBuildError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Empty => write!(f, "IFS cannot be empty."),
+            Self::MissingProbability => {
+                write!(f, "All TMAs in an IFS must have a probability for stochastic generation.")
+            }
+            Self::InvalidProbabilities => {
+                write!(f, "Probability values must be finite and sum to a positive value.")
+            }
+        }
+    }
+}
+
+impl std::error::Error for IFSBuildError {}
+
 /// TMA: Transformation, Matrix, Affine.
-/// Represents a 2D affine transformation T(v) = A*v + c.
+/// Represents a 2D affine transformation `T(v) = A * v + c`.
 /// This is a fundamental building block for Iterated Function Systems (IFS).
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TMA {
-    /// The 2x2 matrix 'A' for linear transformations (rotation, scaling, shear).
+    /// The 2x2 matrix `A` for linear transformations, such as scaling,
+    /// rotation, reflection, and shear.
     pub matrix: [[f64; 2]; 2],
 
-    /// The 2D vector 'c' for translation.
+    /// The 2D translation vector `c`.
     pub vector: Point,
 
-    /// Optional probability for use in stochastic IFS (e.g., the Chaos Game).
-    /// The sum of probabilities of all TMAs in a system should equal 1.0.
+    /// Optional probability for use in stochastic IFS generation.
+    /// The weights are normalized internally when constructing an `IFS`.
     pub probability: Option<f64>,
 }
 
 impl TMA {
-    /// Creates a new TMA from a given matrix and vector.
+    /// Creates a new affine transform from a given matrix and translation vector.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use tma_engine::TMA;
+    ///
+    /// let transform = TMA::new([[2.0, 0.0], [0.0, 2.0]], [1.0, -1.0]);
+    /// let point = transform * [2.0, 3.0];
+    ///
+    /// assert_eq!(point, [5.0, 5.0]);
+    /// ```
     pub fn new(matrix: [[f64; 2]; 2], vector: Point) -> Self {
         TMA {
             matrix,
@@ -35,7 +76,7 @@ impl TMA {
         }
     }
 
-    /// Creates an identity transformation (no change).
+    /// Creates an identity transformation.
     pub fn identity() -> Self {
         TMA {
             matrix: [[1.0, 0.0], [0.0, 1.0]],
@@ -44,31 +85,51 @@ impl TMA {
         }
     }
 
-    /// A helper to create a uniform scaling transformation.
+    /// Creates a uniform scale transform.
     pub fn from_scale(s: f64) -> Self {
         TMA::new([[s, 0.0], [0.0, s]], [0.0, 0.0])
     }
 
-    /// A helper to create a translation.
+    /// Creates a translation transform.
+    ///
+    /// ```rust
+    /// use tma_engine::TMA;
+    ///
+    /// let transform = TMA::from_translation(3.0, 4.0);
+    /// let point = transform * [1.0, 2.0];
+    ///
+    /// assert_eq!(point, [4.0, 6.0]);
+    /// ```
     pub fn from_translation(tx: f64, ty: f64) -> Self {
         TMA::new([[1.0, 0.0], [0.0, 1.0]], [tx, ty])
     }
 
-    /// A helper to create a rotation transformation (counter-clockwise).
-    /// `theta` is in radians.
+    /// Creates a rotation transform using radians.
     pub fn from_rotation(theta: f64) -> Self {
         let (sin_t, cos_t) = theta.sin_cos();
         TMA::new([[cos_t, -sin_t], [sin_t, cos_t]], [0.0, 0.0])
     }
 
-    /// Attaches a probability to the transformation.
+    /// Creates a shear transform.
+    pub fn from_shear(xy: f64, yx: f64) -> Self {
+        TMA::new([[1.0, xy], [yx, 1.0]], [0.0, 0.0])
+    }
+
+    /// Attaches a non-negative weight to the transformation. The `IFS` builder
+    /// normalizes all weights so they sum to 1.0 during stochastic selection.
+    ///
+    /// ```rust
+    /// use tma_engine::TMA;
+    ///
+    /// let t = TMA::from_translation(1.0, 0.0).with_probability(0.7);
+    /// assert_eq!(t.probability, Some(0.7));
+    /// ```
     pub fn with_probability(mut self, p: f64) -> Self {
         self.probability = Some(p);
         self
     }
 
     /// Applies the transformation to a point.
-    /// Returns a new, transformed point.
     pub fn apply(&self, p: Point) -> Point {
         let x = p[0];
         let y = p[1];
@@ -80,9 +141,19 @@ impl TMA {
     }
 
     /// Composes this transformation with another one.
-    /// This is equivalent to `self * other`, which applies `other` first, then `self`.
+    /// This is equivalent to `self * other`, which applies `other` first and
+    /// then `self`.
+    ///
+    /// ```rust
+    /// use tma_engine::TMA;
+    ///
+    /// let scale = TMA::from_scale(2.0);
+    /// let translate = TMA::from_translation(3.0, 4.0);
+    /// let composed = translate.compose(&scale);
+    ///
+    /// assert_eq!(composed * [1.0, 2.0], [5.0, 8.0]);
+    /// ```
     pub fn compose(&self, other: &TMA) -> Self {
-        // New matrix A_new = A_self * A_other
         let m1 = self.matrix;
         let m2 = other.matrix;
         let new_matrix = [
@@ -96,7 +167,6 @@ impl TMA {
             ],
         ];
 
-        // New vector c_new = A_self * c_other + c_self
         let c1 = self.vector;
         let c2 = other.vector;
         let new_vector = [
@@ -108,8 +178,6 @@ impl TMA {
     }
 }
 
-// Operator Overloading for Algebraic Composition
-// TMA * TMA -> TMA (Composition)
 impl Mul<TMA> for TMA {
     type Output = TMA;
 
@@ -118,8 +186,6 @@ impl Mul<TMA> for TMA {
     }
 }
 
-// Operator Overloading for Application
-// TMA * Point -> Point (Transformation)
 impl Mul<Point> for TMA {
     type Output = Point;
 
@@ -128,35 +194,61 @@ impl Mul<Point> for TMA {
     }
 }
 
-/// A collection of TMA transformations that defines a fractal.
+/// A collection of mutually weighted affine transforms used to generate an IFS.
+#[derive(Debug, PartialEq)]
 pub struct IFS {
     transformations: Vec<TMA>,
-    // We can pre-calculate cumulative probabilities for efficient selection.
     cumulative_probs: Vec<f64>,
 }
+
 impl IFS {
-    /// Creates a new IFS from a vector of TMAs.
-    /// It calculates the cumulative probabilities for the Chaos Game.
-    pub fn new(transformations: Vec<TMA>) -> Result<Self, &'static str> {
+    /// Creates an IFS from a vector of transformations.
+    ///
+    /// Individual probabilities are normalized automatically so that the total
+    /// probability mass is 1.0, making the construction more forgiving than the
+    /// original strict "must sum to exactly 1.0" model.
+    ///
+    /// ```rust
+    /// use tma_engine::geometry::{IFS, TMA};
+    ///
+    /// let ifs = IFS::new(vec![
+    ///     TMA::new([[0.5, 0.0], [0.0, 0.5]], [0.0, 0.0]).with_probability(0.5),
+    ///     TMA::new([[0.5, 0.0], [0.0, 0.5]], [0.5, 0.0]).with_probability(0.5),
+    /// ])
+    /// .expect("valid IFS");
+    ///
+    /// let points = ifs.run_chaos_game(10, 0);
+    /// assert_eq!(points.len(), 10);
+    /// ```
+    pub fn new(transformations: Vec<TMA>) -> Result<Self, IFSBuildError> {
         if transformations.is_empty() {
-            return Err("IFS cannot be empty.");
+            return Err(IFSBuildError::Empty);
         }
 
-        let mut cumulative_probs = Vec::with_capacity(transformations.len());
+        let mut probs = Vec::with_capacity(transformations.len());
         let mut total_prob = 0.0;
 
         for tma in &transformations {
-            // Ensure every TMA has a probability set.
-            let prob = tma
+            let probability = tma
                 .probability
-                .ok_or("All TMAs in an IFS must have a probability for stochastic generation.")?;
-            total_prob += prob;
-            cumulative_probs.push(total_prob);
+                .ok_or(IFSBuildError::MissingProbability)?;
+            if !probability.is_finite() || probability < 0.0 {
+                return Err(IFSBuildError::InvalidProbabilities);
+            }
+            total_prob += probability;
+            probs.push(probability);
         }
 
-        // It's good practice to ensure probabilities sum to ~1.0
-        if (total_prob - 1.0).abs() > 1e-6 {
-            return Err("Probabilities of all TMAs must sum to 1.0.");
+        if !total_prob.is_finite() || total_prob <= 0.0 {
+            return Err(IFSBuildError::InvalidProbabilities);
+        }
+
+        let mut cumulative_probs = Vec::with_capacity(transformations.len());
+        let mut running_total = 0.0;
+
+        for probability in probs {
+            running_total += probability / total_prob;
+            cumulative_probs.push(running_total);
         }
 
         Ok(IFS {
@@ -165,55 +257,112 @@ impl IFS {
         })
     }
 
-    /// Chooses a transformation based on their weighted probabilities.
-    pub fn choose_transformation(&self) -> &TMA {
-        let mut rng = rand::thread_rng();
-        let r: f64 = rng.gen_range(0.0..1.0); // A random float between 0.0 and 1.0
-
-        // Find which "bin" the random number falls into.
-        for (i, &cumulative_prob) in self.cumulative_probs.iter().enumerate() {
-            if r < cumulative_prob {
-                return &self.transformations[i];
-            }
-        }
-
-        // Fallback to the last one, in case of floating point inaccuracies.
-        self.transformations.last().unwrap()
+    /// Returns the normalized cumulative probabilities for the active set.
+    pub fn cumulative_probabilities(&self) -> &[f64] {
+        &self.cumulative_probs
     }
 
-    /// Runs the Chaos Game to generate a set of points for the fractal.
-    // In the impl IFS block
-    // The return type is now Vec<(Point, usize)>
+    /// Chooses a transformation index using a supplied RNG.
+    pub fn choose_index<R: Rng + ?Sized>(&self, rng: &mut R) -> usize {
+        let r = rng.gen_range(0.0..1.0);
+
+        self.cumulative_probs
+            .iter()
+            .position(|&cumulative_prob| r < cumulative_prob)
+            .unwrap_or_else(|| self.transformations.len().saturating_sub(1))
+    }
+
+    /// Chooses a transformation using a supplied RNG.
+    pub fn choose_transformation<R: Rng + ?Sized>(&self, rng: &mut R) -> &TMA {
+        let index = self.choose_index(rng);
+        &self.transformations[index]
+    }
+
+    /// Chooses a transformation using the thread-local RNG.
+    pub fn choose_transformation_thread_rng(&self) -> &TMA {
+        let mut rng = rand::thread_rng();
+        self.choose_transformation(&mut rng)
+    }
+
+    /// Runs the Chaos Game using the thread-local RNG.
     pub fn run_chaos_game(
         &self,
         num_points: usize,
         warmup_iterations: usize,
     ) -> Vec<(Point, usize)> {
+        let mut rng = rand::thread_rng();
+        self.run_chaos_game_with_rng(num_points, warmup_iterations, &mut rng)
+    }
+
+    /// Runs the Chaos Game using a caller-provided RNG.
+    pub fn run_chaos_game_with_rng<R: Rng + ?Sized>(
+        &self,
+        num_points: usize,
+        warmup_iterations: usize,
+        rng: &mut R,
+    ) -> Vec<(Point, usize)> {
         let mut points = Vec::with_capacity(num_points);
         let mut current_point: Point = [0.0, 0.0];
-
-        // We need to track the chosen index
-        let mut chosen_index = 0;
-
         let total_iterations = num_points + warmup_iterations;
 
-        for i in 0..total_iterations {
-            // We'll rewrite the selection logic slightly to get the index.
-            let mut rng = rand::thread_rng();
-            let r: f64 = rng.gen_range(0.0..1.0);
-            for (j, &cumulative_prob) in self.cumulative_probs.iter().enumerate() {
-                if r < cumulative_prob {
-                    chosen_index = j;
-                    break;
-                }
-            }
+        for iteration in 0..total_iterations {
+            let chosen_index = self.choose_index(rng);
             let tma = &self.transformations[chosen_index];
             current_point = tma.apply(current_point);
 
-            if i >= warmup_iterations {
+            if iteration >= warmup_iterations {
                 points.push((current_point, chosen_index));
             }
         }
+
         points
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn with_probability_preserves_weight_for_normalization() {
+        let weighted = TMA::identity().with_probability(2.0);
+        let negative = TMA::identity().with_probability(-0.1);
+
+        assert_eq!(weighted.probability, Some(2.0));
+        assert_eq!(negative.probability, Some(-0.1));
+    }
+
+    #[test]
+    fn composition_applies_transforms_in_order() {
+        let scale = TMA::from_scale(2.0);
+        let translate = TMA::from_translation(3.0, 4.0);
+
+        let composed = translate * scale;
+        let out = composed.apply([1.0, 2.0]);
+
+        assert_eq!(out, [5.0, 8.0]);
+    }
+
+    #[test]
+    fn ifs_normalizes_probabilities() {
+        let ifs = IFS::new(vec![
+            TMA::identity().with_probability(2.0),
+            TMA::identity().with_probability(1.0),
+        ])
+        .expect("valid IFS should be created");
+
+        assert_eq!(ifs.cumulative_probabilities().len(), 2);
+        assert!((ifs.cumulative_probabilities()[0] - 0.666_666_666_666_666_6).abs() < 1e-12);
+        assert!((ifs.cumulative_probabilities()[1] - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn ifs_rejects_negative_probabilities() {
+        let result = IFS::new(vec![
+            TMA::identity().with_probability(0.5),
+            TMA::identity().with_probability(-0.1),
+        ]);
+
+        assert_eq!(result, Err(IFSBuildError::InvalidProbabilities));
     }
 }

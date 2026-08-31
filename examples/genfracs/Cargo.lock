@@ -926,9 +926,7 @@ dependencies = [
 
 [[package]]
 name = "tma_engine"
-version = "0.1.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebfd2ec2481a9679a16d414f70d562d0cb5d5d3ca3ebf2df66bc8139383d1e4f"
+version = "0.2.4"
 dependencies = [
  "image",
  "rand",
