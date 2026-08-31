@@ -127,6 +127,44 @@ This translates well into real tasks such as:
 
 The crate is therefore best understood as a compact geometric substrate for recursive structure generation, with rendering as only one possible downstream interpretation.
 
+## Topology metrics and graph semantics
+
+The branch layer is intentionally graph-like. A `BranchNetwork` keeps parent pointers, child relationships, depth, and carrying-capacity metadata so a generated structure can be treated as a small topological object instead of only a rendering artifact.
+
+Typical graph operations look like this:
+
+```rust
+use tma_engine::geometry::{BranchNetwork, IFS, TMA};
+
+let ifs = IFS::new(vec![
+    TMA::from_translation(1.0, 0.0).with_probability(0.6),
+    TMA::from_translation(-1.0, 0.0).with_probability(0.4),
+])
+.expect("valid IFS");
+
+let mut network = BranchNetwork::new([0.0, 0.0]);
+network.grow_from_ifs(&ifs, &mut rand::thread_rng(), 2);
+
+let root_children = network.children_of(0);
+let visited = network.traverse_from(0);
+let summary = network.flow_summary();
+
+assert!(!root_children.is_empty());
+assert!(visited.contains(&0));
+assert!(summary.iter().all(|entry| entry.capacity >= entry.flow));
+```
+
+This makes the library useful for recursive branching, flow allocation, network morphology, and coarse geometric growth studies where the interesting object is the evolving topology rather than the final image.
+
+## Non-visual fractal examples
+
+The project is intentionally not limited to image generation. Two of the most useful examples are branch-like and flow-like structures that are meaningful as topological objects rather than rendered output.
+
+- `vascular_branching` explores hierarchical recursive branching and physical spacing.
+- `network_flow` models a weighted transport structure with aggregate flow and utilization.
+
+These examples are valuable when the question is not "how does this look?" but rather "how does this grow, distribute, and sustain itself across repeated local updates?"
+
 ## Why it matters
 
 This crate is intended for geometry-heavy tasks where transformation composition, probability-weighted iteration, and visual output all matter: fractal generation, procedural art, iterative geometry, and scientific visualization.

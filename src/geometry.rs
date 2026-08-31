@@ -202,6 +202,11 @@ pub struct IFS {
 }
 
 impl IFS {
+    /// Returns the underlying transformation list.
+    pub fn transformations(&self) -> &[TMA] {
+        &self.transformations
+    }
+
     /// Creates an IFS from a vector of transformations.
     ///
     /// Individual probabilities are normalized automatically so that the total
@@ -319,6 +324,221 @@ impl IFS {
     }
 }
 
+/// A node in a topological or branching structure generated from affine rules.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BranchNode {
+    /// The geometric location of the branch node.
+    pub point: Point,
+    /// The branching depth of this node.
+    pub depth: usize,
+    /// The accumulated flow or weight at the node.
+    pub flow: f64,
+    /// The effective carrying capacity of the branch beyond the current flow.
+    pub capacity: f64,
+    /// The parent index, if this node is not the root.
+    pub parent: Option<usize>,
+}
+
+/// A directed edge in the recursive branching network.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BranchEdge {
+    pub from: usize,
+    pub to: usize,
+    pub weight: f64,
+    pub capacity: f64,
+}
+
+/// A summary of the flow state at a branch node.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FlowSummaryEntry {
+    pub node_index: usize,
+    pub depth: usize,
+    pub flow: f64,
+    pub capacity: f64,
+    pub utilization: f64,
+}
+
+/// A recursive branching structure built from an `IFS`.
+///
+/// This type is also exposed as a graph-like object for explicit parent/child
+/// traversal and topological metrics.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BranchNetwork {
+    nodes: Vec<BranchNode>,
+    edges: Vec<BranchEdge>,
+}
+
+/// Alias for the branch network as a graph-oriented structure.
+pub type BranchGraph = BranchNetwork;
+
+impl BranchNetwork {
+    /// Creates a branch network with a single root node.
+    pub fn new(root_point: Point) -> Self {
+        Self {
+            nodes: vec![BranchNode {
+                point: root_point,
+                depth: 0,
+                flow: 1.0,
+                capacity: 1.0,
+                parent: None,
+            }],
+            edges: Vec::new(),
+        }
+    }
+
+    /// Returns the root node.
+    pub fn root(&self) -> &BranchNode {
+        &self.nodes[0]
+    }
+
+    /// Returns the root index.
+    pub fn root_index(&self) -> usize {
+        0
+    }
+
+    /// Returns the node list.
+    pub fn nodes(&self) -> &[BranchNode] {
+        &self.nodes
+    }
+
+    /// Returns the edge list.
+    pub fn edges(&self) -> &[BranchEdge] {
+        &self.edges
+    }
+
+    /// Returns the number of nodes currently in the network.
+    pub fn len(&self) -> usize {
+        self.nodes.len()
+    }
+
+    /// Returns true when the network contains only the root node.
+    pub fn is_empty(&self) -> bool {
+        self.nodes.is_empty()
+    }
+
+    /// Returns the depth of the deepest node in the network.
+    pub fn max_depth(&self) -> usize {
+        self.nodes.iter().map(|node| node.depth).max().unwrap_or(0)
+    }
+
+    /// Returns the total flow currently in the network.
+    pub fn total_flow(&self) -> f64 {
+        self.nodes.iter().map(|node| node.flow).sum()
+    }
+
+    /// Returns the aggregate carrying capacity across the network.
+    pub fn total_capacity(&self) -> f64 {
+        self.nodes.iter().map(|node| node.capacity).sum()
+    }
+
+    /// Returns a compact flow summary for each node in the network.
+    pub fn flow_summary(&self) -> Vec<FlowSummaryEntry> {
+        self.nodes
+            .iter()
+            .enumerate()
+            .map(|(index, node)| {
+                let utilization = if node.capacity > 0.0 {
+                    node.flow / node.capacity
+                } else {
+                    0.0
+                };
+
+                FlowSummaryEntry {
+                    node_index: index,
+                    depth: node.depth,
+                    flow: node.flow,
+                    capacity: node.capacity,
+                    utilization,
+                }
+            })
+            .collect()
+    }
+
+    /// Returns the direct parent of a node, if it exists.
+    pub fn parent_of(&self, node_index: usize) -> Option<usize> {
+        self.nodes.get(node_index).and_then(|node| node.parent)
+    }
+
+    /// Returns the stored depth of a node, if it exists.
+    pub fn node_depth(&self, node_index: usize) -> Option<usize> {
+        self.nodes.get(node_index).map(|node| node.depth)
+    }
+
+    /// Returns the capacity recorded on a node, if it exists.
+    pub fn node_capacity(&self, node_index: usize) -> Option<f64> {
+        self.nodes.get(node_index).map(|node| node.capacity)
+    }
+
+    /// Returns the children of a node.
+    pub fn children_of(&self, node_index: usize) -> Vec<usize> {
+        self.edges
+            .iter()
+            .filter_map(|edge| (edge.from == node_index).then_some(edge.to))
+            .collect()
+    }
+
+    /// Traverses the directed branch graph from a node and returns a parent/child
+    /// ordering in breadth-first sequence.
+    pub fn traverse_from(&self, start_index: usize) -> Vec<usize> {
+        if self.nodes.get(start_index).is_none() {
+            return Vec::new();
+        }
+
+        let mut order = Vec::new();
+        let mut visited = vec![false; self.nodes.len()];
+        let mut frontier = std::collections::VecDeque::from([start_index]);
+        visited[start_index] = true;
+
+        while let Some(index) = frontier.pop_front() {
+            order.push(index);
+            for child in self.children_of(index) {
+                if !visited[child] {
+                    visited[child] = true;
+                    frontier.push_back(child);
+                }
+            }
+        }
+
+        order
+    }
+
+    /// Grows the network by repeatedly applying an `IFS` to each active node.
+    pub fn grow_from_ifs<R: Rng + ?Sized>(&mut self, ifs: &IFS, rng: &mut R, depth_limit: usize) {
+        let mut frontier = std::collections::VecDeque::from([0usize]);
+
+        while let Some(index) = frontier.pop_front() {
+            let current = self.nodes[index].clone();
+            if current.depth >= depth_limit {
+                continue;
+            }
+
+            for _ in 0..2 {
+                let chosen = ifs.choose_index(rng);
+                let transform = &ifs.transformations()[chosen];
+                let next_point = transform.apply(current.point);
+                let next_index = self.nodes.len();
+                let next_flow = current.flow * 0.9;
+                let next_capacity = current.capacity * 0.9 + current.flow * 0.1;
+
+                self.nodes.push(BranchNode {
+                    point: next_point,
+                    depth: current.depth + 1,
+                    flow: next_flow,
+                    capacity: next_capacity,
+                    parent: Some(index),
+                });
+                self.edges.push(BranchEdge {
+                    from: index,
+                    to: next_index,
+                    weight: current.flow,
+                    capacity: next_capacity,
+                });
+                frontier.push_back(next_index);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -365,4 +585,90 @@ mod tests {
 
         assert_eq!(result, Err(IFSBuildError::InvalidProbabilities));
     }
+
+    #[test]
+    fn branch_network_tracks_recursive_growth() {
+        let ifs = IFS::new(vec![
+            TMA::from_translation(1.0, 0.0).with_probability(0.6),
+            TMA::from_translation(-1.0, 0.0).with_probability(0.4),
+        ])
+        .expect("valid flow network");
+
+        let mut network = BranchNetwork::new([0.0, 0.0]);
+        network.grow_from_ifs(&ifs, &mut rand::thread_rng(), 2);
+
+        assert!(network.len() > 1);
+        assert!(network.root().depth == 0);
+    }
+
+    #[test]
+    fn branch_network_tracks_edges_between_parents_and_children() {
+        let ifs = IFS::new(vec![
+            TMA::from_translation(1.0, 0.0).with_probability(0.6),
+            TMA::from_translation(-1.0, 0.0).with_probability(0.4),
+        ])
+        .expect("valid flow network");
+
+        let mut network = BranchNetwork::new([0.0, 0.0]);
+        network.grow_from_ifs(&ifs, &mut rand::thread_rng(), 1);
+
+        assert!(!network.edges().is_empty());
+        assert!(network.edges()[0].to > network.edges()[0].from);
+        assert!(network.nodes()[0].depth == 0);
+    }
+
+    #[test]
+    fn branch_network_reports_metrics() {
+        let ifs = IFS::new(vec![
+            TMA::from_translation(1.0, 0.0).with_probability(0.6),
+            TMA::from_translation(-1.0, 0.0).with_probability(0.4),
+        ])
+        .expect("valid flow network");
+
+        let mut network = BranchNetwork::new([0.0, 0.0]);
+        network.grow_from_ifs(&ifs, &mut rand::thread_rng(), 1);
+
+        assert!(network.max_depth() >= 1);
+        assert!(network.total_flow() > 0.0);
+        assert!(network.children_of(0).len() >= 1);
+    }
+
+    #[test]
+    fn branch_network_supports_graph_traversal_and_capacity_metrics() {
+        let ifs = IFS::new(vec![
+            TMA::from_translation(1.0, 0.0).with_probability(0.6),
+            TMA::from_translation(-1.0, 0.0).with_probability(0.4),
+        ])
+        .expect("valid flow network");
+
+        let mut network = BranchNetwork::new([0.0, 0.0]);
+        network.grow_from_ifs(&ifs, &mut rand::thread_rng(), 2);
+
+        let root_children = network.children_of(0);
+        assert!(!root_children.is_empty());
+        assert_eq!(network.parent_of(root_children[0]), Some(0));
+        assert!(network.node_depth(root_children[0]).is_some());
+        assert!(network.node_capacity(root_children[0]).is_some());
+        assert!(network.total_capacity() >= network.total_flow());
+        assert!(network.traverse_from(0).contains(&0));
+        assert!(network.traverse_from(0).len() >= root_children.len() + 1);
+    }
+
+    #[test]
+    fn branch_network_exposes_flow_summary_metrics() {
+        let ifs = IFS::new(vec![
+            TMA::from_translation(1.0, 0.0).with_probability(0.6),
+            TMA::from_translation(-1.0, 0.0).with_probability(0.4),
+        ])
+        .expect("valid flow network");
+
+        let mut network = BranchNetwork::new([0.0, 0.0]);
+        network.grow_from_ifs(&ifs, &mut rand::thread_rng(), 2);
+
+        let summary = network.flow_summary();
+        assert!(!summary.is_empty());
+        assert!(summary[0].utilization >= 0.0);
+        assert!(summary.iter().all(|entry| entry.capacity >= entry.flow));
+    }
 }
+
