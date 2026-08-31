@@ -27,10 +27,16 @@ impl fmt::Display for IFSBuildError {
         match self {
             Self::Empty => write!(f, "IFS cannot be empty."),
             Self::MissingProbability => {
-                write!(f, "All TMAs in an IFS must have a probability for stochastic generation.")
+                write!(
+                    f,
+                    "All TMAs in an IFS must have a probability for stochastic generation."
+                )
             }
             Self::InvalidProbabilities => {
-                write!(f, "Probability values must be finite and sum to a positive value.")
+                write!(
+                    f,
+                    "Probability values must be finite and sum to a positive value."
+                )
             }
         }
     }
@@ -234,9 +240,7 @@ impl IFS {
         let mut total_prob = 0.0;
 
         for tma in &transformations {
-            let probability = tma
-                .probability
-                .ok_or(IFSBuildError::MissingProbability)?;
+            let probability = tma.probability.ok_or(IFSBuildError::MissingProbability)?;
             if !probability.is_finite() || probability < 0.0 {
                 return Err(IFSBuildError::InvalidProbabilities);
             }
@@ -630,7 +634,7 @@ mod tests {
 
         assert!(network.max_depth() >= 1);
         assert!(network.total_flow() > 0.0);
-        assert!(network.children_of(0).len() >= 1);
+        assert!(!network.children_of(0).is_empty());
     }
 
     #[test]
@@ -651,7 +655,7 @@ mod tests {
         assert!(network.node_capacity(root_children[0]).is_some());
         assert!(network.total_capacity() >= network.total_flow());
         assert!(network.traverse_from(0).contains(&0));
-        assert!(network.traverse_from(0).len() >= root_children.len() + 1);
+        assert!(network.traverse_from(0).len() > root_children.len());
     }
 
     #[test]
@@ -671,4 +675,3 @@ mod tests {
         assert!(summary.iter().all(|entry| entry.capacity >= entry.flow));
     }
 }
-

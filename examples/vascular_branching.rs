@@ -54,7 +54,7 @@ fn main() {
     let total_points = network.len();
     let average_radius = network
         .iter()
-        .map(|node| (node.point[0].hypot(node.point[1])) as f64)
+        .map(|node| node.point[0].hypot(node.point[1]))
         .sum::<f64>()
         / total_points as f64;
 

@@ -18,21 +18,18 @@ fn summarize_branches(depth_limit: usize) -> Vec<(usize, usize, f64, f64)> {
     network
         .flow_summary()
         .into_iter()
-        .map(|entry| {
-            (
-                entry.node_index,
-                entry.depth,
-                entry.flow,
-                entry.capacity,
-            )
-        })
+        .map(|entry| (entry.node_index, entry.depth, entry.flow, entry.capacity))
         .collect()
 }
 
 fn main() {
     let summary = summarize_branches(4);
     let total_nodes = summary.len();
-    let max_depth = summary.iter().map(|(_, depth, _, _)| *depth).max().unwrap_or(0);
+    let max_depth = summary
+        .iter()
+        .map(|(_, depth, _, _)| *depth)
+        .max()
+        .unwrap_or(0);
     let total_flow = summary.iter().map(|(_, _, flow, _)| *flow).sum::<f64>();
 
     println!("Branch summary example");

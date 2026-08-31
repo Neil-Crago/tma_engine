@@ -65,6 +65,9 @@ fn main() {
     println!("First 12 nodes:");
 
     for node in flow.iter().take(12) {
-        println!("  depth={} flow={:.4} point={:?}", node.depth, node.flow, node.point);
+        println!(
+            "  depth={} flow={:.4} point={:?}",
+            node.depth, node.flow, node.point
+        );
     }
 }
