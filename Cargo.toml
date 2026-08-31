@@ -9,7 +9,7 @@ homepage = "https://github.com/Neil-Crago/tma_engine"
 repository = "https://github.com/Neil-Crago/tma_engine"
 readme = "README.md"
 documentation = "https://docs.rs/tma_engine"
-keywords = ["affine", "fractals", "ifs", "chaos-game", "geometry", "barnsley", "sierpinski"]
+keywords = ["affine", "fractal", "geometry", "vasculature", "topology"]
 categories = ["graphics", "mathematics", "science"]
 
 [dependencies]
