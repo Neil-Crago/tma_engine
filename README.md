@@ -198,15 +198,9 @@ These are better understood as distributions, growth rules, branching maps, or w
 
 `TMA` is a useful substrate for exactly this class of problem: it offers a compact, robust language for describing repeated local transformations that can be used to simulate recursive branching, growth, and flow without committing to a specific visual representation.
 
-## Release checklist
+## Author
 
-Before cutting a release:
-
-1. Confirm all tests pass with `cargo test`.
-2. Run `cargo clippy --all-targets --all-features -- -D warnings`.
-3. Validate examples with `cargo check --manifest-path examples/genfracs/Cargo.toml`.
-4. Update the version in `Cargo.toml` and changelog notes if used.
-5. Tag and publish with `cargo publish` once the docs and examples look correct.
+Neil Crago
 
 ## License
 

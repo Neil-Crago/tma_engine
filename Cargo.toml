@@ -1,6 +1,6 @@
 [package]
 name = "tma_engine"
-version = "0.2.5"
+version = "0.2.6"
 edition = "2024"
 authors = ["Neil Crago"]
 description = "A robust, ergonomic toolkit for building and composing 2D affine transformations and iterative function systems."
