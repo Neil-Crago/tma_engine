@@ -9,7 +9,9 @@ A modern Rust toolkit for composing affine transforms, building iterated functio
 
 `TMA` stands for Transformation, Matrix, Affine. The crate models a 2D affine map as:
 
-$$T(v) = A v + c$$
+$$
+T(v) = A v + c
+$$
 
 This makes it straightforward to construct procedural fractals, simulate chaos-game iteration, and compose transformations of arbitrary complexity.
 
